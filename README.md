@@ -7,14 +7,12 @@ Users should be able to upload labelled handwriting samples to be stored on the 
 
 Current plan:
 
-1. Use Keras with TensorFlow backend to generate a convolutional neural net which will generate fingerprints given handwriting samples ([I will use the dataset found here](https://www.kaggle.com/tejasreddy/iam-handwriting-top50)).
+1. Use Keras with TensorFlow backend to generate a convolutional neural net which will take an image padded to certain dimensions and produce a fingerprint. Fingerprints for images by the same author should be closer together in n-dimensional space than those from different authors ([I will use the dataset found here](https://www.kaggle.com/tejasreddy/iam-handwriting-top50)).
 
-2. Create an HTTP server with Flask that runs on localhost and allows the main program to interface with the AI model. Given image data, it should generate a fingerprint for a submitted unlabelled sample and then compare that fingerprint to the submitter's labelled samples with a k-nearest-neighbor search.
+2. Create a very simple Flask server that allows a client to query the model with an image and get back a response as JSON.
 
-3. Create a public HTTP server with node.js that interacts with the local server mentioned above but handles any non-AI requests directly. It will access a local MySQL server, but will use a Redis store for caching.
+3. Create another Flask server with a REST API to serve the application.
 
-4. Write Vue.js templates to be rendered on the web frontend.
-
-5. Write a REST API.
+4. Add HTML templates to the application server for a Vue.js web application.
 
 6. Write a mobile frontend with Xamarin using the REST API (optional endgame step).
