@@ -3,11 +3,11 @@ import unittest
 import sys
 sys.path.append("..")
 
-from project.server.server import app, db
+from project.model_server.server import app
 
 
 """
-    Thomas: Unit tests for server package
+    Thomas: Unit tests for model_server package
 """
 
 TEST_DB = "test.db"
@@ -23,8 +23,6 @@ class FlaskTests(unittest.TestCase):
         app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + \
             os.path.join(app.config["BASEDIR"], TEST_DB)
         self.app = app.test_client()
-        db.drop_all()
-        db.create_all()
 
         return super().setUp()
 
