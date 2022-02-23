@@ -1,5 +1,6 @@
 import os
 from tensorflow import keras
+from keras import Model, layers
 
 # Run from repository root
 DATA_DIR = "data/"
@@ -7,6 +8,7 @@ DATA_DIR = "data/"
 # Max dimensions for input images
 MAX_X = 640
 MAX_Y = 1136
+
 
 def get_writers(data_file: str) -> tuple:
     sample2writer = {}
@@ -20,30 +22,23 @@ def get_writers(data_file: str) -> tuple:
                 writer2samples[writer_id].append(sample_id)
             else:
                 writer2samples[writer_id] = [sample_id]
-        
+
         return sample2writer, writer2samples
 
 
-def gen_model(sample2writer: dict, writer2sample: dict) -> keras.Model:
-    n_classes = len(writer2sample.keys())
-    model = keras.models.Sequential([
-        keras.layers.MaxPooling2D(2),
-        keras.layers.Conv2D(128, 7, activation="relu", padding="same"),
-        keras.layers.Conv2D(128, 7, activation="relu", padding="same"),
-        keras.layers.MaxPooling2D(2),
-        keras.layers.Conv2D(256, 5, activation="relu", padding="same"),
-        keras.layers.Conv2D(256, 5, activation="relu", padding="same"),
-        keras.layers.MaxPooling2D(2),
-        keras.layers.Flatten(),
-        keras.layers.Dense(128, activation="relu"),
-        keras.layers.Dropout(0.5),
-        keras.layers.Dense(64, activation="relu"),
-        keras.layers.Dropout(0.5),
-        keras.layers.Dense(25, activation="relu"),
-        keras.layers.Dense(n_classes, activation="softmax"),
-    ])
+def gen_model(writer2samples: dict) -> Model:
+    n_classes = len(writer2samples.keys())
+    base_model = keras.applications.xception.Xception(
+        weights="imagenet", include_top=False)
+    fingerprint = layers.Dense(64, activation="relu")(base_model.output)
+    dropout = layers.Dropout(0.5)(fingerprint)
+    output = layers.Dense(n_classes)(dropout)
+    model = Model(inputs=base_model.input, outputs=output)
+
+    return model
 
 
 if __name__ == "__main__":
-    sample2writer, writer2sample = get_writers(os.path.join(DATA_DIR, "forms_for_parsing.txt"))
-    print(writer2sample)
+    sample2writer, writer2samples = get_writers(
+        os.path.join(DATA_DIR, "forms_for_parsing.txt"))
+    model = gen_model(writer2samples)
