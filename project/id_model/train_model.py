@@ -129,13 +129,15 @@ def gen_model(n_writers):
 
     # Dropout layer to prevent overfitting
     dropout1 = layers.Dropout(0.1)(flatten)
-    dense1 = layers.Dense(300, activation="relu")(dropout1)
-    dropout2 = layers.Dropout(0.1)(dense1)
-    dense2 = layers.Dense(500, activation="relu")(dropout2)
-    dropout3 = layers.Dropout(0.1)(dense2)
-    dense3 = layers.Dense(500, activation="relu")(dropout3)
+    dense1 = layers.Dense(160, activation="relu")(dropout1)
+    dropout2 = layers.Dropout(0.05)(dense1)
+    dense2 = layers.Dense(160, activation="relu")(dropout2)
+    dropout3 = layers.Dropout(0.05)(dense2)
+    dense3 = layers.Dense(160, activation="relu")(dropout3)
+    dropout4 = layers.Dropout(0.05)(dense3)
+    dense4 = layers.Dense(160, activation="relu")(dropout4)
     # The fingerprint array which will be used by the actual application
-    fingerprint = layers.Dense(200, activation="relu")(dense3)
+    fingerprint = layers.Dense(100, activation="relu")(dense4)
     output = layers.Dense(n_writers, activation="softmax")(fingerprint)
     model = Model(inputs=base_model.input, outputs=output)
 
@@ -166,7 +168,7 @@ if __name__ == "__main__":
 
     # Train the model
     history = model.fit(train_generator, validation_data=validation_generator,
-                        epochs=3, steps_per_epoch=250, validation_steps=20)
+                        epochs=25, steps_per_epoch=80, validation_steps=25)
 
     # Plot training history
     plot_history(history, path=ACC_GRAPH_IMG)
