@@ -5,14 +5,15 @@
 
 import glob
 import os
-import random
+import sys
 import numpy as np
 import tensorflow as tf
+from random import shuffle, randint
 from keras import Model, layers
+from keras.metrics import top_k_categorical_accuracy
 from keras.applications.mobilenet_v2 import MobileNetV2
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
-from sklearn.utils import shuffle
 from PIL import Image
 from plot_keras_history import plot_history
 from matplotlib import pyplot as plt
@@ -25,6 +26,8 @@ FORMS_PATH = os.path.join(DATA_DIR, "forms_for_parsing.txt")
 OUT_DIR = "out"
 MODEL_PLOT_IMG = os.path.join(OUT_DIR, "model.png")
 ACC_GRAPH_IMG = os.path.join(OUT_DIR, "accuracy.png")
+LOG_PATH = os.path.join(OUT_DIR, "log.txt")
+ERR_LOG_PATH = os.path.join(OUT_DIR, "err_log.txt")
 
 # Dimensions of input images
 # From default input dimensions for MobileNetV2
@@ -32,6 +35,10 @@ IMG_WIDTH = 224
 IMG_HEIGHT = 224
 
 BATCH_SIZE = 32
+
+
+def top_3_accuracy(y_true, y_pred):
+    return top_k_categorical_accuracy(y_true, y_pred, 3)
 
 
 # Retrieve data for training
@@ -78,31 +85,31 @@ def split_data(img_files, img_targets):
     return encoder, train_files,  validation_files, test_files, train_targets, validation_targets, test_targets
 
 
-# Generator function to select random portions of images and resize themto the required dimensions
+# Generator function to select random portions of images and resize them to the required dimensions
 def gen_data(samples, target_files, n_classes, batch_size=BATCH_SIZE):
     n_samples = len(samples)
+    samples_targets = list(zip(samples, target_files))
 
     while True:
+        shuffle(samples_targets)
         for offset in range(0, n_samples - batch_size, batch_size):
-            batch_samples = samples[offset:offset+batch_size]
-            batch_targets = target_files[offset:offset+batch_size]
+            batch = samples_targets[offset:offset+batch_size]
 
             images = []
             targets = []
             for i in range(batch_size):
                 # Get the next image in the batch
-                batch_sample = batch_samples[i]
-                batch_target = batch_targets[i]
+                batch_sample, batch_target = batch[i]
                 img = Image.open(batch_sample)
                 img_width = img.size[0]
                 img_height = img.size[1]
 
                 # Select a random section of the image of a random width and height
-                # which will be no less than 25/36 the area of the original
-                new_width = random.randint(5 * img_width // 6, img_width)
-                new_height = random.randint(5 * img_height // 6, img_height)
-                new_left = random.randint(0, img_width - new_width)
-                new_up = random.randint(0, img_height - new_height)
+                # which will be no less than 9/16 the area of the original
+                new_width = randint(3 * img_width // 4, img_width)
+                new_height = randint(3 * img_height // 4, img_height)
+                new_left = randint(0, img_width - new_width)
+                new_up = randint(0, img_height - new_height)
 
                 # Crop the image and resize it to the required input dimensions
                 new_img = img.crop((new_left, new_up, new_left + new_width,
@@ -116,7 +123,7 @@ def gen_data(samples, target_files, n_classes, batch_size=BATCH_SIZE):
             y_train = tf.keras.utils.to_categorical(
                 np.array(targets), n_classes)
 
-            yield shuffle(X_train, y_train)
+            yield X_train, y_train
 
 
 # Create the model to be trained
@@ -128,16 +135,11 @@ def gen_model(n_writers):
     flatten = layers.Flatten()(base_model.output)
 
     # Dropout layer to prevent overfitting
-    dropout1 = layers.Dropout(0.1)(flatten)
-    dense1 = layers.Dense(160, activation="relu")(dropout1)
-    dropout2 = layers.Dropout(0.05)(dense1)
-    dense2 = layers.Dense(160, activation="relu")(dropout2)
-    dropout3 = layers.Dropout(0.05)(dense2)
-    dense3 = layers.Dense(160, activation="relu")(dropout3)
-    dropout4 = layers.Dropout(0.05)(dense3)
-    dense4 = layers.Dense(160, activation="relu")(dropout4)
+    dropout = layers.Dropout(0.6)(flatten)
+    dense = layers.Dense(500, activation="relu")(dropout)
+
     # The fingerprint array which will be used by the actual application
-    fingerprint = layers.Dense(100, activation="relu")(dense4)
+    fingerprint = layers.Dense(200, activation="relu")(dense)
     output = layers.Dense(n_writers, activation="softmax")(fingerprint)
     model = Model(inputs=base_model.input, outputs=output)
 
@@ -148,6 +150,12 @@ if __name__ == "__main__":
     # Create output directory if not present
     if not os.path.exists(OUT_DIR):
         os.mkdir(OUT_DIR)
+
+    # Print to log
+    log_file = open(LOG_PATH, "w")
+    sys.stdout = log_file
+    err_log = open(ERR_LOG_PATH, "w")
+    sys.stderr = err_log
 
     # Retrieve and split the dataset
     le, train_files,  validation_files, test_files, train_targets, validation_targets, test_targets = split_data(
@@ -162,13 +170,13 @@ if __name__ == "__main__":
     test_generator = gen_data(test_files, test_targets, n_writers)
 
     model.compile(loss="categorical_crossentropy",
-                  optimizer="adam", metrics=["accuracy"])
+                  optimizer="adam", metrics=["accuracy", top_3_accuracy])
     print(model.summary())
     tf.keras.utils.plot_model(model, to_file=MODEL_PLOT_IMG, show_shapes=True)
 
     # Train the model
     history = model.fit(train_generator, validation_data=validation_generator,
-                        epochs=25, steps_per_epoch=80, validation_steps=25)
+                        epochs=10, steps_per_epoch=200, validation_steps=50)
 
     # Plot training history
     plot_history(history, path=ACC_GRAPH_IMG)
