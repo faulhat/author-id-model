@@ -5,13 +5,12 @@
 
 import glob
 import os
-import sys
 import numpy as np
 import tensorflow as tf
 from random import shuffle, randint
 from keras import Model, layers
 from keras.metrics import top_k_categorical_accuracy
-from keras.applications.mobilenet_v2 import MobileNetV2
+from keras.applications.mobilenet import MobileNet
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from PIL import Image
@@ -26,19 +25,22 @@ FORMS_PATH = os.path.join(DATA_DIR, "forms_for_parsing.txt")
 OUT_DIR = "out"
 MODEL_PLOT_IMG = os.path.join(OUT_DIR, "model.png")
 ACC_GRAPH_IMG = os.path.join(OUT_DIR, "accuracy.png")
-LOG_PATH = os.path.join(OUT_DIR, "log.txt")
-ERR_LOG_PATH = os.path.join(OUT_DIR, "err_log.txt")
+SAVED_MODEL = os.path.join(OUT_DIR, "saved_model.h5")
 
 # Dimensions of input images
-# From default input dimensions for MobileNetV2
+# From default input dimensions for MobileNet
 IMG_WIDTH = 224
 IMG_HEIGHT = 224
 
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 
 
 def top_3_accuracy(y_true, y_pred):
-    return top_k_categorical_accuracy(y_true, y_pred, 3)
+    return top_k_categorical_accuracy(y_true, y_pred, k=3)
+
+
+def top_5_accuracy(y_true, y_pred):
+    return top_k_categorical_accuracy(y_true, y_pred, k=5)
 
 
 # Retrieve data for training
@@ -76,7 +78,7 @@ def split_data(img_files, img_targets):
 
     # Split the dataset
     train_files, other_files, train_targets, other_targets = train_test_split(
-        img_files, encoded_Y, train_size=0.66, random_state=52, shuffle=True)
+        img_files, encoded_Y, train_size=0.7, random_state=52, shuffle=True)
     validation_files, test_files, validation_targets, test_targets = train_test_split(
         other_files, other_targets, train_size=0.5, random_state=25, shuffle=True)
 
@@ -86,9 +88,9 @@ def split_data(img_files, img_targets):
 
 
 # Generator function to select random portions of images and resize them to the required dimensions
-def gen_data(samples, target_files, n_classes, batch_size=BATCH_SIZE):
+def gen_data(samples, targets, n_classes, batch_size=BATCH_SIZE):
     n_samples = len(samples)
-    samples_targets = list(zip(samples, target_files))
+    samples_targets = list(zip(samples, targets))
 
     while True:
         shuffle(samples_targets)
@@ -105,9 +107,9 @@ def gen_data(samples, target_files, n_classes, batch_size=BATCH_SIZE):
                 img_height = img.size[1]
 
                 # Select a random section of the image of a random width and height
-                # which will be no less than 9/16 the area of the original
-                new_width = randint(3 * img_width // 4, img_width)
-                new_height = randint(3 * img_height // 4, img_height)
+                # which will be no less than 16/25 the area of the original
+                new_width = randint(4 * img_width // 5, img_width)
+                new_height = randint(4 * img_height // 5, img_height)
                 new_left = randint(0, img_width - new_width)
                 new_up = randint(0, img_height - new_height)
 
@@ -119,7 +121,7 @@ def gen_data(samples, target_files, n_classes, batch_size=BATCH_SIZE):
 
             # Prepare the inputs and targets for the convolutional net
             X_train = np.array(images).reshape(
-                len(images), IMG_WIDTH, IMG_HEIGHT, 1).repeat(3, axis=3).astype("float32") / 255
+                len(images), IMG_WIDTH, IMG_HEIGHT, 1).repeat(3, axis=-1).astype("float32") / 255
             y_train = tf.keras.utils.to_categorical(
                 np.array(targets), n_classes)
 
@@ -128,19 +130,18 @@ def gen_data(samples, target_files, n_classes, batch_size=BATCH_SIZE):
 
 # Create the model to be trained
 def gen_model(n_writers):
-    # The MobileNetV2 image recognition model will be used as a base
-    base_model = MobileNetV2(input_shape=(
+    # The MobileNet image recognition model will be used as a base
+    base_model = MobileNet(input_shape=(
         IMG_WIDTH, IMG_HEIGHT, 3), weights="imagenet", include_top=False)
     base_model.trainable = False
     flatten = layers.Flatten()(base_model.output)
 
     # Dropout layer to prevent overfitting
-    dropout = layers.Dropout(0.6)(flatten)
+    dropout = layers.Dropout(0.3)(flatten)
     dense = layers.Dense(500, activation="relu")(dropout)
-
-    # The fingerprint array which will be used by the actual application
-    fingerprint = layers.Dense(200, activation="relu")(dense)
-    output = layers.Dense(n_writers, activation="softmax")(fingerprint)
+    dense = layers.Dense(1000, activation="relu")(dense)
+    dense = layers.Dense(500, activation="relu")(dense)
+    output = layers.Dense(n_writers, activation="softmax")(dense)
     model = Model(inputs=base_model.input, outputs=output)
 
     return model
@@ -150,12 +151,6 @@ if __name__ == "__main__":
     # Create output directory if not present
     if not os.path.exists(OUT_DIR):
         os.mkdir(OUT_DIR)
-
-    # Print to log
-    log_file = open(LOG_PATH, "w")
-    sys.stdout = log_file
-    err_log = open(ERR_LOG_PATH, "w")
-    sys.stderr = err_log
 
     # Retrieve and split the dataset
     le, train_files,  validation_files, test_files, train_targets, validation_targets, test_targets = split_data(
@@ -170,17 +165,18 @@ if __name__ == "__main__":
     test_generator = gen_data(test_files, test_targets, n_writers)
 
     model.compile(loss="categorical_crossentropy",
-                  optimizer="adam", metrics=["accuracy", top_3_accuracy])
+                  optimizer="adam", metrics=["accuracy", top_3_accuracy, top_5_accuracy])
     print(model.summary())
     tf.keras.utils.plot_model(model, to_file=MODEL_PLOT_IMG, show_shapes=True)
 
     # Train the model
     history = model.fit(train_generator, validation_data=validation_generator,
-                        epochs=10, steps_per_epoch=200, validation_steps=50)
+                        epochs=25, steps_per_epoch=160, validation_steps=50)
 
     # Plot training history
     plot_history(history, path=ACC_GRAPH_IMG)
     plt.close()
 
-    scores = model.evaluate(test_generator, steps=200)
-    print(f"Accuracy = {scores[1]}")
+    scores = model.evaluate(test_generator, steps=500)
+
+    model.save(SAVED_MODEL)
