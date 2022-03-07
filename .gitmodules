@@ -1,0 +1,3 @@
+[submodule "handwritten-text-recognition-for-apache-mxnet"]
+	path = handwritten-text-recognition-for-apache-mxnet
+	url = https://github.com/awslabs/handwritten-text-recognition-for-apache-mxnet
