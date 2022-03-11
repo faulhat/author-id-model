@@ -16,6 +16,7 @@
        -> [words from all forms from each contributor]
 """
 
+from asyncore import write
 import glob
 import math
 import os
@@ -23,6 +24,7 @@ import shutil
 import sys
 import numpy as np
 import tensorflow as tf
+import pickle
 from typing import Iterator
 from random import shuffle, randint
 from keras import Model, layers
@@ -43,6 +45,7 @@ DATASET_PATH = os.path.join(DATA_DIR, "data/")
 SEGMENTS = os.path.join(DATA_DIR, "segments/")
 PARAGRAPHS = os.path.join(SEGMENTS, "paragraphs/")
 WORDS = os.path.join(SEGMENTS, "words/")
+LE_SAVE_PATH = os.path.join(SEGMENTS, "key.pickle")  # Path to encoder save file
 
 # Save generated images to
 OUT_DIR = "out/"
@@ -87,9 +90,41 @@ def get_data(dataset_path: str) -> tuple[list[str], list[str]]:
     return filenames, writers
 
 
+# Create an encoder that gives each writer a unique id starting from zero.
+# Store the mapping to a json file.
+def create_save_encoder(writers: list[str], out_file: str) -> LabelEncoder:
+    encoder = LabelEncoder()
+    encoder.fit(np.asarray(writers))
+
+    with open(out_file, "wb") as key_fp:
+        pickle.dump(encoder, key_fp)
+
+    return encoder
+
+
+# Functions to preprocess images to feed to the CNN
+def resize_transform(img: Image.Image) -> Image.Image:
+    w, h = img.size
+    if w > h:
+        ratio = IMG_WIDTH / w
+        img.resize((IMG_WIDTH, int(h * ratio)))
+    else:
+        ratio = IMG_HEIGHT / h
+        img.resize((int(w * ratio), IMG_HEIGHT))
+
+    tmp = Image.new("RGB", (IMG_WIDTH, IMG_HEIGHT))
+    tmp.paste(img, (0, 0))
+    return tmp
+
+
+def transform_images(img_arrays: list[np.ndarray]) -> np.ndarray:
+    return np.array(img_arrays).reshape(len(img_arrays), IMG_WIDTH, IMG_HEIGHT, 3).astype("float32") / 255.0
+
+
 # Extract paragraphs and words from image files
 # paragraph_dir and word_dir must exist
-def segment_data(filenames: list[str], writers: list[str], paragraph_dir: str, word_dir: str) -> dict[str, str]:
+def segment_data(filenames: list[str], writers: list[str], paragraph_dir: str, word_dir: str, le_save_path: str)\
+        -> tuple[dict[str, str], LabelEncoder]:
     print("Finding words in forms...")
     writer2words = {}
     totalwords = 0
@@ -105,20 +140,29 @@ def segment_data(filenames: list[str], writers: list[str], paragraph_dir: str, w
         writer_word_dir = os.path.join(word_dir, f"{writer}/")
         paragraph_prefix = f"{tail}_"
         os.makedirs(writer_word_dir, exist_ok=True)
-        word_filenames = get_words(paragraph_img_path, writer_word_dir, prefix=paragraph_prefix)
+        word_filenames = get_words(
+            paragraph_img_path, writer_word_dir, prefix=paragraph_prefix, transform_fn=resize_transform)
         if writer in writer2words:
             writer2words[writer].extend(word_filenames)
         else:
             writer2words[writer] = word_filenames
-        
+
         totalwords += len(word_filenames)
 
     print(f"Found a total of {totalwords} words.")
-    return writer2words
+    encoder = create_save_encoder(list(writer2words.keys()), le_save_path)
+    return writer2words, encoder
+
+
+# Load encoder from key file
+def load_encoder(le_save_path: str) -> LabelEncoder:
+    with open(le_save_path, "rb") as key_fp:
+        return pickle.load(key_fp)
 
 
 # Get segmented data, assuming it's already been processed
-def get_segmented_data(word_dir: str) -> dict[str, str]:
+def get_segmented_data(word_dir: str, le_save_path: str, do_gen_encoder: bool = False)\
+        -> tuple[dict[str, str], LabelEncoder]:
     print("Getting segmented images...")
     writer2words = {}
     writer_dirs = glob.glob(os.path.join(word_dir, "*"))
@@ -126,16 +170,18 @@ def get_segmented_data(word_dir: str) -> dict[str, str]:
         _, tail = os.path.split(writer_dir)
         writer2words[tail] = glob.glob(os.path.join(writer_dir, "*"))
 
-    return writer2words
+    encoder: LabelEncoder
+    if do_gen_encoder:
+        encoder = create_save_encoder(list(writer2words.keys()), le_save_path)
+    else:
+        encoder = load_encoder(le_save_path)
+
+    return writer2words, encoder
 
 
 # Split data for training, validation, and testing
-def split_data(writer2words: dict[str, str]) ->\
-        tuple[LabelEncoder, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    # Create an encoder that gives each writer a unique id starting from zero.
-    encoder = LabelEncoder()
-    encoder.fit(np.asarray(list(writer2words.keys())))
-
+def split_data(writer2words: dict[str, str], encoder: LabelEncoder)\
+        -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     # Split the dataset
     train_files, validation_files, test_files = [], [], []
     train_targets, validation_targets, test_targets = [], [], []
@@ -167,11 +213,13 @@ def split_data(writer2words: dict[str, str]) ->\
 
     # Return the encoder in addition to the split dataset
     # so that it can be used by other parts of the program
-    return encoder, train_files, validation_files, test_files, train_targets, validation_targets, test_targets
+    return train_files, validation_files, test_files, train_targets, validation_targets, test_targets
+
+# Generator function to get words from the dataset.
 
 
-# Generator function to select random portions of images and resize them to the required dimensions
-def gen_data(samples: np.ndarray, targets: np.ndarray, n_classes: int, batch_size: int = BATCH_SIZE) -> Iterator[tuple[np.ndarray, np.ndarray]]:
+def gen_data(samples: np.ndarray, targets: np.ndarray, n_classes: int, batch_size: int = BATCH_SIZE, do_resize: bool = False)\
+        -> Iterator[tuple[np.ndarray, np.ndarray]]:
     n_samples = len(samples)
     samples_targets = list(zip(samples, targets))
 
@@ -186,13 +234,14 @@ def gen_data(samples: np.ndarray, targets: np.ndarray, n_classes: int, batch_siz
                 # Get the next image in the batch
                 batch_sample, batch_target = batch[i]
                 with Image.open(batch_sample) as img:
-                    resized = img.resize((IMG_WIDTH, IMG_HEIGHT))
-                    images.append(np.asarray(resized))
+                    if do_resize:
+                        img = img.resize((IMG_WIDTH, IMG_HEIGHT))
+
+                    images.append(np.asarray(img))
                     targets.append(batch_target)
 
             # Prepare the inputs and targets for the convolutional net
-            X_train = np.array(images).reshape(
-                len(images), IMG_WIDTH, IMG_HEIGHT, 1).repeat(3, axis=-1).astype("float32") / 255
+            X_train = transform_images(images)
             y_train = tf.keras.utils.to_categorical(
                 np.array(targets), n_classes)
 
@@ -213,37 +262,45 @@ def gen_model(n_writers: int) -> Model:
     dropout = layers.Dropout(0.1)(dense)
     dense = layers.Dense(1000, activation="relu")(dropout)
     dense = layers.Dense(500, activation="relu")(dense)
-    dense = layers.Dense(200, activation="relu")(dense)
+    dense = layers.Dense(500, activation="relu")(dense)
     output = layers.Dense(n_writers, activation="softmax")(dense)
     model = Model(inputs=base_model.input, outputs=output)
 
     return model
 
 
+# Clear SEGMENTS directory and do preprocessing
+def clear_and_process_data(out_dir: str, segments: str, paragraphs: str, words: str, dataset_path: str, le_save_path: str)\
+        -> tuple[dict[str, str], LabelEncoder]:
+    # Create output directory
+    os.makedirs(out_dir, exist_ok=True)
+
+    # Clear generated data
+    shutil.rmtree(segments)
+
+    # Create data and output directories if not present
+    os.makedirs(paragraphs)
+    os.makedirs(words)
+
+    filenames, writers = get_data(dataset_path)
+    return segment_data(filenames, writers, PARAGRAPHS, WORDS, le_save_path)
+
+
 if __name__ == "__main__":
     writer2words: dict[str, str]
+    encoder: LabelEncoder
     if len(sys.argv) > 1 and sys.argv[1].startswith("skip"):
         # Skip preprocessing and assume data has already been processed
-        writer2words = get_segmented_data(WORDS)
+        writer2words, encoder = get_segmented_data(WORDS, LE_SAVE_PATH, do_gen_encoder=True)
     else:
-        # Create output directory
-        os.makedirs(OUT_DIR, exist_ok=True)
-
-        # Clear generated data
-        shutil.rmtree(SEGMENTS)
-
-        # Create data and output directories if not present
-        os.makedirs(PARAGRAPHS)
-        os.makedirs(WORDS)
-
-        filenames, writers = get_data(DATASET_PATH)
-        writer2words = segment_data(filenames, writers, PARAGRAPHS, WORDS)
+        writer2words, encoder = clear_and_process_data(
+            OUT_DIR, SEGMENTS, PARAGRAPHS, WORDS, DATASET_PATH, LE_SAVE_PATH)
 
     # Retrieve and split the dataset
-    le, train_files,  validation_files, test_files, train_targets, validation_targets, test_targets =\
-        split_data(writer2words)
+    train_files,  validation_files, test_files, train_targets, validation_targets, test_targets =\
+        split_data(writer2words, encoder)
 
-    n_writers = len(le.classes_)
+    n_writers = len(encoder.classes_)
     model = gen_model(n_writers)
 
     train_generator = gen_data(train_files, train_targets, n_writers)
@@ -258,7 +315,7 @@ if __name__ == "__main__":
 
     # Train the model
     history = model.fit(train_generator, validation_data=validation_generator,
-                        epochs=35, steps_per_epoch=200, validation_steps=100)
+                        epochs=25, steps_per_epoch=250, validation_steps=50)
 
     # Plot training history
     plot_history(history, path=ACC_GRAPH_IMG)
