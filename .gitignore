@@ -128,7 +128,9 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+.vscode/
+
 data/
 out/
 model_data/
-test_out/
+segments/

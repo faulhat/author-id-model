@@ -68,7 +68,6 @@ scikit-learn==1.0.2
 scipy==1.8.0
 six==1.16.0
 SQLAlchemy==1.4.31
-tensorboard==2.8.0
 tensorboard-data-server==0.6.1
 tensorboard-plugin-wit==1.8.1
 tensorflow==2.8.0

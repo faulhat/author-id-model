@@ -1,3 +1,5 @@
+#!/bin/bash
+
 source .env/bin/activate
 
 mkdir model_data
