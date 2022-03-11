@@ -31,7 +31,7 @@ WORDS_DIR = os.path.join(OUT_DIR, "words/")
 
 
 # Find bounding box for paragraph
-def get_paragraph(img_path: str, out_dir: str) -> str:
+def get_paragraph(img_path: str, out_file: str) -> None:
     paragraph_segmentation_net = SegmentationNetwork(ctx=ctx)
     paragraph_segmentation_net.cnn.load_parameters(
         "model_data/models/paragraph_segmentation2.params", ctx=ctx)
@@ -58,14 +58,11 @@ def get_paragraph(img_path: str, out_dir: str) -> str:
         segmented_paragraph_size = (700, 700)
     
         paragraph_img = image.crop(box).resize(segmented_paragraph_size)
-        paragraph_img_path = os.path.join(out_dir, f"{i}.png")
-        paragraph_img.save(paragraph_img_path)
-
-        return paragraph_img_path
+        paragraph_img.save(out_file)
 
 
 # Word segmentation function
-def get_words(paragraph_img_path: str, out_dir: str, topk: int = 40, debug: bool = False) -> list[str]:
+def get_words(paragraph_img_path: str, out_dir: str, topk: int = 100, debug: bool = False, prefix: str = "") -> list[str]:
     word_segmentation_net = WordSegmentationNet(2, ctx=ctx)
     word_segmentation_net.load_parameters(
         "model_data/models/word_segmentation2.params")
@@ -90,7 +87,7 @@ def get_words(paragraph_img_path: str, out_dir: str, topk: int = 40, debug: bool
             w, h = x + int(w), y + int(h)
             image = paragraph_img.crop((x, y, w, h))
 
-            out_path = os.path.join(out_dir, f"{j}.png")
+            out_path = os.path.join(out_dir, f"{prefix}{j}.png")
             image.save(out_path)
             word_segmented_images.append(out_path)
 
@@ -115,10 +112,11 @@ if __name__ == "__main__":
         img_paths.append(img_file)
 
     for i, img_path in enumerate(img_paths):
-        out_dir = os.path.join(WORDS_DIR, f"para_{i}")
-        os.makedirs(out_dir, exist_ok=True)
-
         print(f"Finding paragraph in image {i}")
-        paragraph_img_path = get_paragraph(img_path, PARAGRAPHS_DIR)
+        paragraph_img_path = os.path.join(PARAGRAPHS_DIR, f"{i}.png")
+        get_paragraph(img_path, paragraph_img_path)
+
         print(f"Finding words in paragraph...")
+        out_dir = os.path.join(WORDS_DIR, f"{i}")
+        os.makedirs(out_dir, exist_ok=True)
         get_words(paragraph_img_path, out_dir, debug=True)
