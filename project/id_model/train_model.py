@@ -22,10 +22,11 @@
     + training_set.pkl - List of paragraphs included in training set
 """
 
-import math
 import os
-import numpy as np
 import tensorflow as tf
+import math
+import sys
+import numpy as np
 import pickle
 from typing import Iterator
 from random import shuffle, randint
@@ -48,8 +49,8 @@ ACC_GRAPH_IMG = os.path.join(OUT_DIR, "accuracy.png")
 SAVED_MODEL = os.path.join(OUT_DIR, "saved_model.h5")
 DS_LABELS_PATH = os.path.join(OUT_DIR, "ds_labels.pkl")
 
-BATCH_SIZE = 12
-STEPS_PER_EPOCH = 175
+BATCH_SIZE = 16
+STEPS_PER_EPOCH = 200
 VALIDATION_STEPS = 50
 
 
@@ -97,7 +98,7 @@ def split_data(para2words: dict[str, str], para2writer: dict[str, str], encoder:
         else:
             writer2paras[writer] = [paragraph]
 
-    for writer, paragraphs in writer2paras.items:
+    for writer, paragraphs in writer2paras.items():
         n_train = math.ceil(len(paragraphs) * 3/5)
         for _ in range(n_train):
             paragraph = paragraphs.pop(randint(0, len(paragraphs) - 1))
@@ -107,7 +108,7 @@ def split_data(para2words: dict[str, str], para2writer: dict[str, str], encoder:
             train_files.extend(words)
             train_targets.extend([writer for _ in words])
 
-        n_valid = math.floor(len(paragraphs) / 2)
+        n_valid = math.ceil(len(paragraphs) / 2)
         for _ in range(n_valid):
             paragraph = paragraphs.pop(randint(0, len(paragraphs) - 1))
             validation_paras.append(paragraph)
@@ -126,7 +127,7 @@ def split_data(para2words: dict[str, str], para2writer: dict[str, str], encoder:
             test_targets.extend([writer for _ in words])
 
     if store_ds_to is not None:
-        with open(store_ds_to, "rb") as pkl_fp:
+        with open(store_ds_to, "wb") as pkl_fp:
             pickle.dump((train_paras, (validation_paras, test_paras),
                         (train_targets, validation_targets, test_targets)), pkl_fp)
 
@@ -158,13 +159,13 @@ def gen_data(samples: np.ndarray, targets: np.ndarray, n_classes: int, batch_siz
             targets = []
             for i in range(batch_size):
                 # Get the next image in the batch
-                batch_sample, batch_target = batch[i]
-                with Image.open(batch_sample) as img:
+                sample, target = batch[i]
+                with Image.open(sample) as img:
                     if do_resize:
                         img = img.resize((IMG_WIDTH, IMG_HEIGHT))
 
                     images.append(np.asarray(img))
-                    targets.append(batch_target)
+                    targets.append(target)
 
             # Prepare the inputs and targets for the convolutional net
             X_train = transform_images(images)
@@ -183,10 +184,9 @@ def gen_model(n_writers: int) -> Model:
     flatten = layers.Flatten()(base_model.output)
 
     # Dropout layer to prevent overfitting
-    dropout = layers.Dropout(0.35)(flatten)
-    dense = layers.Dense(500, activation="relu")(dropout)
-    dense = layers.Dense(800, activation="relu")(dense)
-    dense = layers.Dense(500, activation="relu")(dense)
+    dropout = layers.Dropout(0.6)(flatten)
+    dense = layers.Dense(400, activation="relu")(dropout)
+    dense = layers.Dense(200, activation="relu")(dense)
 
     output = layers.Dense(n_writers, activation="softmax")(dense)
     model = Model(inputs=base_model.input, outputs=output)
@@ -194,7 +194,7 @@ def gen_model(n_writers: int) -> Model:
     return model
 
 
-def retrieve_split_dataset(split_ds: tuple[np.ndarray, ...], encoder: LabelEncoder)\
+def get_model_generators(split_ds: tuple[np.ndarray, ...], encoder: LabelEncoder)\
         -> tuple[Model, tuple[Iterator[tuple[np.ndarray, np.ndarray]], ...]]:
     train_files,  validation_files, test_files, train_targets, validation_targets, test_targets = split_ds
     
@@ -217,6 +217,13 @@ model_checkpoint_callback = ModelCheckpoint(
     save_best_only=True)
 
 if __name__ == "__main__":
+    n_epochs = 30
+    if len(sys.argv) > 1:
+        try:
+            n_epochs = int(sys.argv[1])
+        except ValueError:
+            pass
+
     os.makedirs(OUT_DIR, exist_ok=True)
 
     # Assume data has already been processed
@@ -224,10 +231,11 @@ if __name__ == "__main__":
         WORDS, LE_SAVE_PATH, do_gen_encoder=True)
     
     # Retrieve and split the dataset
-    split_ds = split_data(writer2words, encoder, store_ds_to=DS_LABELS_PATH)
+    para2words, para2writer = categorize_all(PARAGRAPHS, WORDS)
+    split_ds = split_data(para2words, para2writer, encoder, store_ds_to=DS_LABELS_PATH)
 
     model, (train_generator, validation_generator,
-            test_generator) = retrieve_split_dataset(split_ds, encoder, store_ds_to=DS_LABELS_PATH)
+            test_generator) = get_model_generators(split_ds, encoder)
     model.compile(loss="categorical_crossentropy",
                   optimizer="adam", metrics=["accuracy", top_3_accuracy, top_5_accuracy])
     print(model.summary())
@@ -235,7 +243,7 @@ if __name__ == "__main__":
 
     # Train the model
     history = model.fit(train_generator, validation_data=validation_generator,
-                        epochs=30, steps_per_epoch=STEPS_PER_EPOCH, validation_steps=VALIDATION_STEPS, callbacks=[model_checkpoint_callback])
+                        epochs=n_epochs, steps_per_epoch=STEPS_PER_EPOCH, validation_steps=VALIDATION_STEPS, callbacks=[model_checkpoint_callback])
 
     # Plot training history
     plot_history(history, path=ACC_GRAPH_IMG)

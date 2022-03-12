@@ -14,14 +14,28 @@ def retrieve_set_labels(ds_labels_path: str)\
         return pickle.load(pkl_fp)
 
 
-def retrieve_sets(ds_labels_path: str, para2words: dict[str, str], para2writer: dict[str, str], encoder: LabelEncoder)\
+def retrieve_sets(ds_labels_path: str, para2words: dict[str, str], para2writer: dict[str, str], encoder: LabelEncoder, debug: bool = False)\
         -> tuple[np.ndarray, ...]:
     train_paras, (validation_paras, test_paras), (train_targets, validation_targets,
                                                   test_targets) = retrieve_set_labels(ds_labels_path)
+    
+    train_files, validation_files, test_files = [], [], []
+    for paragraph in train_paras:
+        train_files.extend(para2words[paragraph])
+    
+    for paragraph in validation_paras:
+        validation_files.extend(para2words[paragraph])
 
-    train_files = list(map(para2words.get, train_paras))
-    validation_files = list(map(para2words.get, validation_paras))
-    test_files = list(map(para2words.get, test_paras))
+    for paragraph in test_paras:
+        test_files.extend(para2words[paragraph])
+    
+    if debug:
+        print(f"Train paragraphs: {len(train_paras)}")
+        print(f"Train words: {len(train_files)}")
+        print(f"Validation paragraphs: {len(validation_paras)}")
+        print(f"Validation words: {len(validation_files)}")
+        print(f"Test paragraphs: {len(test_paras)}")
+        print(f"Test words: {len(test_files)}")
 
     train_targets, validation_targets, test_targets = np.asarray(
         train_targets), np.asarray(validation_targets), np.asarray(test_targets)
@@ -41,11 +55,11 @@ if __name__ == "__main__":
         except ValueError:
             pass
 
-    writer2words, encoder = get_segmented_data(
-        WORDS, LE_SAVE_PATH, do_gen_encoder=False)
-    split_ds = retrieve_sets(DS_LABELS_PATH)
+    encoder = load_encoder(LE_SAVE_PATH)
+    para2words, para2writer = categorize_all(PARAGRAPHS, WORDS)
+    split_ds = retrieve_sets(DS_LABELS_PATH, para2words, para2writer, encoder, debug=True)
     model, (train_generator, validation_generator,
-            test_generator) = gen_data(split_ds, encoder)
+            test_generator) = get_model_generators(split_ds, encoder)
     model.load_weights(SAVED_MODEL)
 
     model.compile(loss="categorical_crossentropy",

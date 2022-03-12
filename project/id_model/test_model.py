@@ -8,10 +8,6 @@
     for the full form.
 """
 
-from random import choices
-import sys
-import glob
-import os
 import numpy as np
 import tensorflow as tf
 from keras.models import Model
@@ -21,6 +17,7 @@ from PIL import Image
 from tqdm import trange
 
 from train_model import *
+from continue_training import retrieve_set_labels
 
 
 # Function to vote on one individual form
@@ -51,11 +48,20 @@ def vote(model: Model, words: list[str], y_label: int, do_resize: bool = False)\
     return pred_correct, pred_correct_top3, pred_correct_top5
 
 
-def transform_by_para(paragraph2words: dict[str, str], paragraph2writer: dict[str, str], encoder: LabelEncoder)\
+def get_test_paras(para2words: dict[str, str], train_paras: list[str]) -> dict[str, str]:
+    test_para2words = {}
+    for para, words in para2words.items():
+        if para not in train_paras:
+            test_para2words[para] = words
+    
+    return test_para2words
+
+
+def transform_by_para(para2words: dict[str, str], para2writer: dict[str, str], encoder: LabelEncoder)\
         -> list[tuple[list[str], int]]:
     words_label = []
-    for paragraph, words in paragraph2words.items():
-        writer = paragraph2writer[paragraph]
+    for paragraph, words in para2words.items():
+        writer = para2writer[paragraph]
         y_label = encoder.transform([writer])[0]
         words_label.append((words, y_label))
 
@@ -63,9 +69,12 @@ def transform_by_para(paragraph2words: dict[str, str], paragraph2writer: dict[st
 
 
 if __name__ == "__main__":
+    train_paras, _, _ = retrieve_set_labels(DS_LABELS_PATH)
+
     encoder = load_encoder(LE_SAVE_PATH)
-    paragraph2words, paragraph2writer = categorize_all(PARAGRAPHS, WORDS)
-    words_label = transform_by_para(paragraph2words, paragraph2writer, encoder)
+    para2words, para2writer = categorize_all(PARAGRAPHS, WORDS)
+    para2words = get_test_paras(para2words, train_paras)
+    words_label = transform_by_para(para2words, para2writer, encoder)
 
     model = gen_model(len(encoder.classes_))
     model.load_weights(SAVED_MODEL)
