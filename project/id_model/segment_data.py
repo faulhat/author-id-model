@@ -17,7 +17,7 @@ SEGMENTS = os.path.join(DATA_DIR, "segments/")
 PARAGRAPHS = os.path.join(SEGMENTS, "paragraphs/")
 WORDS = os.path.join(SEGMENTS, "words/")
 # Path to encoder save file
-LE_SAVE_PATH = os.path.join(SEGMENTS, "key.pickle")
+LE_SAVE_PATH = os.path.join(SEGMENTS, "key.pkl")
 
 # Dimensions of input images
 # From default input dimensions for MobileNet
@@ -25,11 +25,14 @@ IMG_WIDTH = 224
 IMG_HEIGHT = 224
 
 # Min forms a contributor must have filled out to be included in set
-FORMS_PER_WRITER = 5
+MIN_FORMS = 5
+
+# Max forms which can be included from one contributor
+MAX_FORMS_PER_WRITER = 6
 
 
 # Retrieve data for training
-def get_data(dataset_path: str, forms_per_writer: int = FORMS_PER_WRITER)\
+def get_data(dataset_path: str, min_forms: int = MIN_FORMS, max_forms_per_writer: int = MAX_FORMS_PER_WRITER)\
         -> tuple[list[str], list[str]]:
     writer_dirs = glob.glob(os.path.join(dataset_path, "*"))
     author2imgs = [(os.path.split(writer_dir)[1], glob.glob(os.path.join(writer_dir, "*")))
@@ -39,8 +42,8 @@ def get_data(dataset_path: str, forms_per_writer: int = FORMS_PER_WRITER)\
     filenames = []
     writers = []
     for author, img_files in author2imgs:
-        if len(img_files) >= forms_per_writer:
-            for img_file in img_files[:forms_per_writer]:
+        if len(img_files) >= min_forms:
+            for img_file in img_files[:max_forms_per_writer]:
                 filenames.append(img_file)
                 writers.append(author)
 
@@ -138,8 +141,9 @@ def get_segmented_data(word_dir: str, le_save_path: str, do_gen_encoder: bool = 
 
 # Clear SEGMENTS directory and do preprocessing
 def clear_and_process_data(segments: str, paragraphs: str, words: str, dataset_path: str, le_save_path: str):
-    # Clear generated data
-    shutil.rmtree(segments)
+    if os.path.isdir(segments):
+        # Clear generated data
+        shutil.rmtree(segments)
 
     # Create data and output directories if not present
     os.makedirs(paragraphs)

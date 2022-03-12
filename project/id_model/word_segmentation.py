@@ -16,7 +16,6 @@ import numpy as np
 import glob
 import random
 import os
-from tqdm import tqdm
 
 
 ctx = mx.gpu(0) if mx.context.num_gpus() > 0 else mx.cpu()
@@ -110,7 +109,7 @@ if __name__ == "__main__":
     print("Selecting samples...")
     img_paths = []
     img_dirs = glob.glob(os.path.join(DATA_DIR, "*"))
-    for i in tqdm(range(10)):
+    for i in range(10):
         writer_id = random.randint(0, len(img_dirs) - 1)
         writer_dir = img_dirs.pop(writer_id)
         img_file = random.choice(glob.glob(os.path.join(writer_dir, "*")))

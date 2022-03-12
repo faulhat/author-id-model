@@ -5,7 +5,32 @@
 
 import sys
 
-from project.id_model.train_model import *
+from train_model import *
+
+
+def retrieve_set_labels(ds_labels_path: str)\
+        -> tuple[np.ndarray, tuple[np.ndarray, ...], tuple[np.ndarray, ...]]:
+    with open(ds_labels_path, "rb") as pkl_fp:
+        return pickle.load(pkl_fp)
+
+
+def retrieve_sets(ds_labels_path: str, para2words: dict[str, str], para2writer: dict[str, str], encoder: LabelEncoder)\
+        -> tuple[np.ndarray, ...]:
+    train_paras, (validation_paras, test_paras), (train_targets, validation_targets,
+                                                  test_targets) = retrieve_set_labels(ds_labels_path)
+
+    train_files = list(map(para2words.get, train_paras))
+    validation_files = list(map(para2words.get, validation_paras))
+    test_files = list(map(para2words.get, test_paras))
+
+    train_targets, validation_targets, test_targets = np.asarray(
+        train_targets), np.asarray(validation_targets), np.asarray(test_targets)
+    train_targets, validation_targets, test_targets = encoder.transform(
+        train_targets), encoder.transform(validation_targets), encoder.transform(test_targets)
+
+    # Return the encoder in addition to the split dataset
+    # so that it can be used by other parts of the program
+    return train_files, validation_files, test_files, train_targets, validation_targets, test_targets
 
 
 if __name__ == "__main__":
@@ -18,17 +43,15 @@ if __name__ == "__main__":
 
     writer2words, encoder = get_segmented_data(
         WORDS, LE_SAVE_PATH, do_gen_encoder=False)
+    split_ds = retrieve_sets(DS_LABELS_PATH)
     model, (train_generator, validation_generator,
-            test_generator) = retrieve_split_dataset(writer2words, encoder)
+            test_generator) = gen_data(split_ds, encoder)
     model.load_weights(SAVED_MODEL)
 
     model.compile(loss="categorical_crossentropy",
                   optimizer="adam", metrics=["accuracy", top_3_accuracy, top_5_accuracy])
-    print(model.summary())
 
     model.fit(train_generator, validation_data=validation_generator,
-              epochs=n_epochs, steps_per_epoch=250, validation_steps=50)
-    
-    model.evaluate(test_generator, steps=500)
+              epochs=n_epochs, steps_per_epoch=STEPS_PER_EPOCH, validation_steps=VALIDATION_STEPS, callbacks=[model_checkpoint_callback])
 
-    model.save(SAVED_MODEL)
+    model.evaluate(test_generator, steps=500)
