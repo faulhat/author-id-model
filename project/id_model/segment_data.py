@@ -1,3 +1,10 @@
+"""
+    This program will use the models provided by the handwritten-text-recognition submodule included
+    in this repo to extract individual handwritten words from pages with blocks of handwritten text
+    on them. It will store these word segments as separate image files in a client-specified
+    target directory.
+"""
+
 import glob
 import os
 import shutil

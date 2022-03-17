@@ -20,6 +20,12 @@
     + saved_model.h5 - Saved model
     + accuracy.png - Graph of training progress
     + training_set.pkl - List of paragraphs included in training set
+
+    Note that the accuracy shown for the model is not its true accuracy. It is the accuracy on
+    classifications for single words, not for classification on full pages. For full pages
+    it is efficient to sum up the classification vectors for all of the words extracted from
+    a given page and then use that for prediction. This metric can be tested with the
+    test_model.py script.
 """
 
 import os

@@ -1,9 +1,10 @@
 """
     Thomas: this program is meant to test the true accuracy of the model produced by
     train_model.py. It will do this by iterating over all of the forms in the dataset
-    which met the requirements for inclusion in training, validation, and testing
-    (meaning that only contributors who contributed 5 or more forms are included),
-    and running the classifier on each word extracted from each. The classification vectors
+    included in the validation and testing sets
+    (meaning that only contributors who contributed 5 or more forms are included and there
+    will be no overlap with the training set),
+    and running the classifier on each word extracted from each form. The classification vectors
     for all of the words in each form will be summed up to find a classifcation vector
     for the full form.
 """

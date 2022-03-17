@@ -1,6 +1,9 @@
 """
     Thomas: A program to find the words on the pages from the IAM dataset.
     Largely repurposed from https://github.com/awslabs/handwritten-text-recognition-for-apache-mxnet/blob/master/0_handwriting_ocr.ipynb
+
+    Wraps around the models provided in that repo (included here as a git submodule) in order
+    to provide a more specialized interface.
 """
 
 import sys
