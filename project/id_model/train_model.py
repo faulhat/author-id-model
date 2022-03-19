@@ -105,7 +105,7 @@ def split_data(para2words: dict[str, str], para2writer: dict[str, str], encoder:
             writer2paras[writer] = [paragraph]
 
     for writer, paragraphs in writer2paras.items():
-        n_train = math.ceil(len(paragraphs) * 3/5)
+        n_train = math.ceil(len(paragraphs) / 2)
         for _ in range(n_train):
             paragraph = paragraphs.pop(randint(0, len(paragraphs) - 1))
             train_paras.append(paragraph)

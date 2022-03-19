@@ -134,3 +134,4 @@ data/
 out/
 model_data/
 segments/
+best_model_current/
