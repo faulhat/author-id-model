@@ -45,7 +45,7 @@ from PIL import Image
 from plot_keras_history import plot_history
 from matplotlib import pyplot as plt
 
-from segment_data import *
+from .segment_data import *
 
 
 # Save generated images to

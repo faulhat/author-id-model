@@ -3,10 +3,11 @@ from keras import Model
 from tqdm import trange
 import numpy as np
 
-from test_model import *
+from .test_model import *
 
 
-def get_fingerprint_model(saved_model: str) -> Model:
+def get_fingerprint_model(saved_model: str, saved_encoder: str) -> Model:
+    encoder = load_encoder(saved_encoder)
     orig_model = gen_model(len(encoder.classes_))
     orig_model.load_weights(saved_model)
 
@@ -43,7 +44,7 @@ if __name__ == "__main__":
 
     grouped = getGroups(para2writer)
 
-    model = get_fingerprint_model(SAVED_MODEL)
+    model = get_fingerprint_model(SAVED_MODEL, LE_SAVE_PATH)
 
     print("Evaluating fingerprint accuracy...")
 

@@ -14,7 +14,7 @@ from tqdm import trange
 from PIL import Image
 from sklearn.preprocessing import LabelEncoder
 
-from word_segmentation import get_paragraph, get_words
+from .word_segmentation import get_paragraph, get_words
 
 
 # Run from repository root

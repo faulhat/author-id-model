@@ -13,7 +13,7 @@ from ocr.word_and_line_segmentation import SSD as WordSegmentationNet, predict_b
 from ocr.paragraph_segmentation_dcnn import SegmentationNetwork, paragraph_segmentation_transform
 from ocr.utils.expand_bounding_box import expand_bounding_box
 from PIL import Image
-from typing import Callable
+from typing import Callable, Iterator
 import mxnet as mx
 import numpy as np
 import glob
@@ -33,35 +33,68 @@ PARAGRAPHS_DIR = os.path.join(OUT_DIR, "paragraphs/")
 WORDS_DIR = os.path.join(OUT_DIR, "words/")
 
 
-# Find bounding box for paragraph
-def get_paragraph(img_path: str, out_file: str) -> None:
+def get_paragraph_img(image: Image.Image) -> Image.Image:
     paragraph_segmentation_net = SegmentationNetwork(ctx=ctx)
     paragraph_segmentation_net.cnn.load_parameters(
         "model_data/models/paragraph_segmentation2.params", ctx=ctx)
     paragraph_segmentation_net.hybridize()
 
+    img_array = np.asarray(image)
+
+    resized_image = paragraph_segmentation_transform(
+        img_array, (FORM_X, FORM_Y))
+    bb_predicted = paragraph_segmentation_net(
+        resized_image.as_in_context(ctx))
+    bb_predicted = bb_predicted[0].asnumpy()
+    bb_predicted = expand_bounding_box(bb_predicted, expand_bb_scale_x=0.03,
+                                        expand_bb_scale_y=0.03)
+
+    (x, y, w, h) = bb_predicted
+    image_w, image_h = image.size
+    (x, y, w, h) = (x * image_w, y * image_h, w * image_w, h * image_h)
+    x, y = int(x), int(y)
+    w, h = x + int(w), y + int(h)
+    box = (x, y, w, h)
+
+    segmented_paragraph_size = (700, 700)
+
+    return image.crop(box).resize(segmented_paragraph_size)
+
+
+# Find bounding box for paragraph
+def get_paragraph(img_path: str, out_file: str) -> None:
     with Image.open(img_path) as image:
-        img_array = np.asarray(image)
+        get_paragraph_img(image).save(out_file)
 
-        resized_image = paragraph_segmentation_transform(
-            img_array, (FORM_X, FORM_Y))
-        bb_predicted = paragraph_segmentation_net(
-            resized_image.as_in_context(ctx))
-        bb_predicted = bb_predicted[0].asnumpy()
-        bb_predicted = expand_bounding_box(bb_predicted, expand_bb_scale_x=0.03,
-                                           expand_bb_scale_y=0.03)
 
-        (x, y, w, h) = bb_predicted
-        image_w, image_h = image.size
+def get_word_imgs(paragraph_img: Image.Image, topk: int = 100, debug: bool = False, transform_fn: Callable[[Image.Image], Image.Image] = None)\
+        -> Iterator[Image.Image]:
+    word_segmentation_net = WordSegmentationNet(2, ctx=ctx)
+    word_segmentation_net.load_parameters(
+        "model_data/models/word_segmentation2.params")
+    word_segmentation_net.hybridize()
+
+    min_c = 0.1
+    overlap_thres = 0.1
+
+    predicted_bb = predict_bounding_boxes(
+        word_segmentation_net, paragraph_img, min_c, overlap_thres, topk, ctx)
+
+    if debug:
+        print(f"Found {predicted_bb.shape[0]} words.")
+
+    for j in range(predicted_bb.shape[0]):
+        (x, y, w, h) = predicted_bb[j]
+        image_w, image_h = paragraph_img.size
         (x, y, w, h) = (x * image_w, y * image_h, w * image_w, h * image_h)
         x, y = int(x), int(y)
         w, h = x + int(w), y + int(h)
-        box = (x, y, w, h)
+        image = paragraph_img.crop((x, y, w, h))
 
-        segmented_paragraph_size = (700, 700)
+        if transform_fn is not None:
+            image = transform_fn(image)
 
-        paragraph_img = image.crop(box).resize(segmented_paragraph_size)
-        paragraph_img.save(out_file)
+        yield image
 
 
 # Word segmentation function
@@ -72,31 +105,11 @@ def get_words(paragraph_img_path: str, out_dir: str, topk: int = 100, debug: boo
         "model_data/models/word_segmentation2.params")
     word_segmentation_net.hybridize()
 
-    min_c = 0.1
-    overlap_thres = 0.1
-
     word_segmented_images = []
     with Image.open(paragraph_img_path) as paragraph_img:
-        predicted_bb = predict_bounding_boxes(
-            word_segmentation_net, paragraph_img, min_c, overlap_thres, topk, ctx)
-
-        if debug:
-            print(f"Found {predicted_bb.shape[0]} words.")
-
-        for j in range(predicted_bb.shape[0]):
-            (x, y, w, h) = predicted_bb[j]
-            image_w, image_h = paragraph_img.size
-            (x, y, w, h) = (x * image_w, y * image_h, w * image_w, h * image_h)
-            x, y = int(x), int(y)
-            w, h = x + int(w), y + int(h)
-            image = paragraph_img.crop((x, y, w, h))
-
-            if transform_fn is not None:
-                image = transform_fn(image)
-
-            out_path = os.path.join(out_dir, f"{prefix}{j}.png")
-            image.save(out_path)
-            word_segmented_images.append(out_path)
+        wordIter = get_word_imgs(paragraph_img, topk, debug, transform_fn)
+        for word_img in wordIter:
+            word_segmented_images.append(word_img)
 
     return word_segmented_images
 

@@ -17,14 +17,13 @@ from sklearn.preprocessing import LabelEncoder
 from PIL import Image
 from tqdm import trange
 
-from train_model import *
-from continue_training import retrieve_set_labels
+from .train_model import *
+from .continue_training import retrieve_set_labels
 
 
 # Function to classify one form
-def getAvgOutput(model: Model, words: list[str], do_resize: bool = False)\
+def getAvgOutputImgs(model: Model, word_imgs: list[Image.Image], do_resize: bool = False)\
         -> np.ndarray:
-    word_imgs = list(map(Image.open, words))
     if do_resize:
         for i, word_img in enumerate(word_imgs):
             word_imgs[i] = word_img.resize((IMG_WIDTH, IMG_HEIGHT))
@@ -39,6 +38,12 @@ def getAvgOutput(model: Model, words: list[str], do_resize: bool = False)\
         fp.close()
     
     return pred_mean
+
+def getAvgOutput(model: Model, word_paths: list[str], do_resize: bool = False)\
+        -> np.ndarray:
+    word_imgs = list(map(Image.open, word_paths))
+
+    return getAvgOutputImgs(model, word_imgs, do_resize=do_resize)
 
 # Function to get the accuracy of a classification
 def getAccuracy(pred_mean: np.ndarray, y_label: int)\
