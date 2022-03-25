@@ -14,7 +14,7 @@ from .model.segment_data import LE_SAVE_PATH
 from .model.train_model import SAVED_MODEL
 
 app = Flask(__name__)
-MODEL = get_fingerprint_model(SAVED_MODEL, LE_SAVE_PATH)
+MODEL = get_fingerprint_model(SAVED_MODEL)
 
 
 @app.route("/eval", methods=["POST"])

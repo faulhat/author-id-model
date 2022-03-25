@@ -215,7 +215,7 @@ def get_model_generators(split_ds: tuple[np.ndarray, ...], encoder: LabelEncoder
     return model, (train_generator, validation_generator, test_generator)
 
 
-model_checkpoint_callback = ModelCheckpoint(
+CHECKPOINT_CALLBACK = ModelCheckpoint(
     filepath=SAVED_MODEL,
     verbose=1,
     monitor='val_accuracy',
@@ -249,7 +249,7 @@ if __name__ == "__main__":
 
     # Train the model
     history = model.fit(train_generator, validation_data=validation_generator,
-                        epochs=n_epochs, steps_per_epoch=STEPS_PER_EPOCH, validation_steps=VALIDATION_STEPS, callbacks=[model_checkpoint_callback])
+                        epochs=n_epochs, steps_per_epoch=STEPS_PER_EPOCH, validation_steps=VALIDATION_STEPS, callbacks=[CHECKPOINT_CALLBACK])
 
     # Plot training history
     plot_history(history, path=ACC_GRAPH_IMG)

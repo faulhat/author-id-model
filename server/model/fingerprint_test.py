@@ -1,17 +1,16 @@
 from random import shuffle
-from keras import Model
+from keras.models import Model, load_model
 from tqdm import trange
 import numpy as np
 
+from .train_model import CHECKPOINT_CALLBACK, top_3_accuracy, top_5_accuracy
 from .test_model import *
 
 
-def get_fingerprint_model(saved_model: str, saved_encoder: str) -> Model:
-    encoder = load_encoder(saved_encoder)
-    orig_model = gen_model(len(encoder.classes_))
-    orig_model.load_weights(saved_model)
-
+def get_fingerprint_model(saved_model: str) -> Model:
+    orig_model = load_model(SAVED_MODEL, custom_objects={"top_3_accuracy": top_3_accuracy, "top_5_accuracy": top_5_accuracy})
     new_model = Model(inputs=orig_model.inputs, outputs=orig_model.layers[-2].output)
+
     return new_model
 
 
@@ -44,7 +43,7 @@ if __name__ == "__main__":
 
     grouped = getGroups(para2writer)
 
-    model = get_fingerprint_model(SAVED_MODEL, LE_SAVE_PATH)
+    model = get_fingerprint_model(SAVED_MODEL)
 
     print("Evaluating fingerprint accuracy...")
 

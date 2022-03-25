@@ -2,6 +2,7 @@
 
 source .env/bin/activate
 pip install -r requirements.txt
+pip uninstall tensorboard -y
 
 # Setup for handwritten text segmentation submodule.
 

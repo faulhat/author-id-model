@@ -71,6 +71,6 @@ if __name__ == "__main__":
                   optimizer="adam", metrics=["accuracy", top_3_accuracy, top_5_accuracy])
 
     model.fit(train_generator, validation_data=validation_generator,
-              epochs=n_epochs, steps_per_epoch=STEPS_PER_EPOCH, validation_steps=VALIDATION_STEPS, callbacks=[model_checkpoint_callback])
+              epochs=n_epochs, steps_per_epoch=STEPS_PER_EPOCH, validation_steps=VALIDATION_STEPS, callbacks=[CHECKPOINT_CALLBACK])
 
     model.evaluate(test_generator, steps=500)
