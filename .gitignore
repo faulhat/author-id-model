@@ -136,3 +136,5 @@ model_data/
 segments/
 best_model_current/
 *.zip
+
+config.json
