@@ -3,12 +3,12 @@ from keras.models import Model, load_model
 from tqdm import trange
 import numpy as np
 
-from .train_model import CHECKPOINT_CALLBACK, top_3_accuracy, top_5_accuracy
+from .train_model import top_3_accuracy, top_5_accuracy
 from .test_model import *
 
 
 def get_fingerprint_model(saved_model: str) -> Model:
-    orig_model = load_model(SAVED_MODEL, custom_objects={"top_3_accuracy": top_3_accuracy, "top_5_accuracy": top_5_accuracy})
+    orig_model = load_model(saved_model, custom_objects={"top_3_accuracy": top_3_accuracy, "top_5_accuracy": top_5_accuracy})
     new_model = Model(inputs=orig_model.inputs, outputs=orig_model.layers[-2].output)
 
     return new_model

@@ -32,7 +32,7 @@ def get_config(config_path: str) -> dict:
 @app.route("/eval", methods=["POST"])
 def evaluate():
     image = Image.open(request.files["rq_image"])
-    paragraph = get_paragraph_img(image)
+    paragraph = get_paragraph_img(image) # Will resize image automatically
     word_imgs = get_word_imgs(paragraph)
     fingerprint = getAvgOutputImgs(MODEL, word_imgs).tolist()
     
