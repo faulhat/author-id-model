@@ -39,11 +39,16 @@ MAX_FORMS_PER_WRITER = 6
 
 
 # Retrieve data for training
-def get_data(dataset_path: str, min_forms: int = MIN_FORMS, max_forms_per_writer: int = MAX_FORMS_PER_WRITER)\
-        -> tuple[list[str], list[str]]:
+def get_data(
+    dataset_path: str,
+    min_forms: int = MIN_FORMS,
+    max_forms_per_writer: int = MAX_FORMS_PER_WRITER,
+) -> tuple[list[str], list[str]]:
     writer_dirs = glob.glob(os.path.join(dataset_path, "*"))
-    author2imgs = [(os.path.split(writer_dir)[1], glob.glob(os.path.join(writer_dir, "*")))
-                   for writer_dir in writer_dirs]
+    author2imgs = [
+        (os.path.split(writer_dir)[1], glob.glob(os.path.join(writer_dir, "*")))
+        for writer_dir in writer_dirs
+    ]
 
     print("Getting data from dataset...")
     filenames = []
@@ -79,19 +84,30 @@ def resize_transform(img: Image.Image) -> Image.Image:
         ratio = IMG_HEIGHT / h
         img.resize((int(w * ratio), IMG_HEIGHT))
 
-    tmp = Image.new("RGB", (IMG_WIDTH, IMG_HEIGHT))
+    tmp = Image.new(img.mode, (IMG_WIDTH, IMG_HEIGHT))
     tmp.paste(img, (0, 0))
     return tmp
 
 
 def transform_images(img_arrays: list[np.ndarray]) -> np.ndarray:
-    return np.array(img_arrays).reshape(len(img_arrays), IMG_WIDTH, IMG_HEIGHT, 3).astype("float32") / 255.0
+    return (
+        np.array(img_arrays)
+        .reshape(len(img_arrays), IMG_WIDTH, IMG_HEIGHT, 1)
+        .repeat(3, axis=-1)
+        .astype("float32")
+        / 255.0
+    )
 
 
 # Extract paragraphs and words from image files
 # paragraph_dir and word_dir must exist
-def segment_data(filenames: list[str], writers: list[str], paragraph_dir: str, word_dir: str, le_save_path: str)\
-        -> tuple[dict[str, str], LabelEncoder]:
+def segment_data(
+    filenames: list[str],
+    writers: list[str],
+    paragraph_dir: str,
+    word_dir: str,
+    le_save_path: str,
+) -> tuple[dict[str, str], LabelEncoder]:
     print("Finding words in forms...")
     writer2words = {}
     totalwords = 0
@@ -100,15 +116,18 @@ def segment_data(filenames: list[str], writers: list[str], paragraph_dir: str, w
         os.makedirs(writer_dir, exist_ok=True)
 
         _, tail = os.path.split(filename)
-        paragraph_img_path = os.path.join(
-            writer_dir, f"{tail}.para.png")
+        paragraph_img_path = os.path.join(writer_dir, f"{tail}.para.png")
         get_paragraph(filename, paragraph_img_path)
 
         writer_word_dir = os.path.join(word_dir, f"{writer}/")
         paragraph_prefix = f"{tail}_"
         os.makedirs(writer_word_dir, exist_ok=True)
         word_filenames = get_words(
-            paragraph_img_path, writer_word_dir, prefix=paragraph_prefix, transform_fn=resize_transform)
+            paragraph_img_path,
+            writer_word_dir,
+            prefix=paragraph_prefix,
+            transform_fn=resize_transform,
+        )
         if writer in writer2words:
             writer2words[writer].extend(word_filenames)
         else:
@@ -128,8 +147,9 @@ def load_encoder(le_save_path: str) -> LabelEncoder:
 
 
 # Get segmented data, assuming it's already been processed
-def get_segmented_data(word_dir: str, le_save_path: str, do_gen_encoder: bool = False)\
-        -> tuple[dict[str, str], LabelEncoder]:
+def get_segmented_data(
+    word_dir: str, le_save_path: str, do_gen_encoder: bool = False
+) -> tuple[dict[str, str], LabelEncoder]:
     print("Getting segmented images...")
     writer2words = {}
     writer_dirs = glob.glob(os.path.join(word_dir, "*"))
@@ -147,7 +167,9 @@ def get_segmented_data(word_dir: str, le_save_path: str, do_gen_encoder: bool = 
 
 
 # Clear SEGMENTS directory and do preprocessing
-def clear_and_process_data(segments: str, paragraphs: str, words: str, dataset_path: str, le_save_path: str):
+def clear_and_process_data(
+    segments: str, paragraphs: str, words: str, dataset_path: str, le_save_path: str
+):
     if os.path.isdir(segments):
         # Clear generated data
         shutil.rmtree(segments)
@@ -161,5 +183,4 @@ def clear_and_process_data(segments: str, paragraphs: str, words: str, dataset_p
 
 
 if __name__ == "__main__":
-    clear_and_process_data(SEGMENTS, PARAGRAPHS, WORDS,
-                           DATASET_PATH, LE_SAVE_PATH)
+    clear_and_process_data(SEGMENTS, PARAGRAPHS, WORDS, DATASET_PATH, LE_SAVE_PATH)

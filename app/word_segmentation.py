@@ -7,10 +7,17 @@
 """
 
 import sys
+
 sys.path.append("handwritten-text-recognition-for-apache-mxnet/")
 
-from ocr.word_and_line_segmentation import SSD as WordSegmentationNet, predict_bounding_boxes
-from ocr.paragraph_segmentation_dcnn import SegmentationNetwork, paragraph_segmentation_transform
+from ocr.word_and_line_segmentation import (
+    SSD as WordSegmentationNet,
+    predict_bounding_boxes,
+)
+from ocr.paragraph_segmentation_dcnn import (
+    SegmentationNetwork,
+    paragraph_segmentation_transform,
+)
 from ocr.utils.expand_bounding_box import expand_bounding_box
 from PIL import Image
 from typing import Callable, Iterator
@@ -36,18 +43,19 @@ WORDS_DIR = os.path.join(OUT_DIR, "words/")
 def get_paragraph_img(image: Image.Image) -> Image.Image:
     paragraph_segmentation_net = SegmentationNetwork(ctx=ctx)
     paragraph_segmentation_net.cnn.load_parameters(
-        "model_data/models/paragraph_segmentation2.params", ctx=ctx)
+        "model_data/models/paragraph_segmentation2.params", ctx=ctx
+    )
     paragraph_segmentation_net.hybridize()
 
+    image = image.convert("L")
     img_array = np.asarray(image)
 
-    resized_image = paragraph_segmentation_transform(
-        img_array, (FORM_X, FORM_Y))
-    bb_predicted = paragraph_segmentation_net(
-        resized_image.as_in_context(ctx))
+    resized_image = paragraph_segmentation_transform(img_array, (FORM_X, FORM_Y))
+    bb_predicted = paragraph_segmentation_net(resized_image.as_in_context(ctx))
     bb_predicted = bb_predicted[0].asnumpy()
-    bb_predicted = expand_bounding_box(bb_predicted, expand_bb_scale_x=0.03,
-                                        expand_bb_scale_y=0.03)
+    bb_predicted = expand_bounding_box(
+        bb_predicted, expand_bb_scale_x=0.03, expand_bb_scale_y=0.03
+    )
 
     (x, y, w, h) = bb_predicted
     image_w, image_h = image.size
@@ -67,18 +75,22 @@ def get_paragraph(img_path: str, out_file: str) -> None:
         get_paragraph_img(image).save(out_file)
 
 
-def get_word_imgs(paragraph_img: Image.Image, topk: int = 100, debug: bool = False, transform_fn: Callable[[Image.Image], Image.Image] = None)\
-        -> Iterator[Image.Image]:
+def get_word_imgs(
+    paragraph_img: Image.Image,
+    topk: int = 100,
+    debug: bool = False,
+    transform_fn: Callable[[Image.Image], Image.Image] = None,
+) -> Iterator[Image.Image]:
     word_segmentation_net = WordSegmentationNet(2, ctx=ctx)
-    word_segmentation_net.load_parameters(
-        "model_data/models/word_segmentation2.params")
+    word_segmentation_net.load_parameters("model_data/models/word_segmentation2.params")
     word_segmentation_net.hybridize()
 
     min_c = 0.1
     overlap_thres = 0.1
 
     predicted_bb = predict_bounding_boxes(
-        word_segmentation_net, paragraph_img, min_c, overlap_thres, topk, ctx)
+        word_segmentation_net, paragraph_img, min_c, overlap_thres, topk, ctx
+    )
 
     if debug:
         print(f"Found {predicted_bb.shape[0]} words.")
@@ -98,18 +110,25 @@ def get_word_imgs(paragraph_img: Image.Image, topk: int = 100, debug: bool = Fal
 
 
 # Word segmentation function
-def get_words(paragraph_img_path: str, out_dir: str, topk: int = 100, debug: bool = False, prefix: str = "", transform_fn: Callable[[Image.Image], Image.Image] = None)\
-        -> list[str]:
+def get_words(
+    paragraph_img_path: str,
+    out_dir: str,
+    topk: int = 100,
+    debug: bool = False,
+    prefix: str = "",
+    transform_fn: Callable[[Image.Image], Image.Image] = None,
+) -> list[str]:
     word_segmentation_net = WordSegmentationNet(2, ctx=ctx)
-    word_segmentation_net.load_parameters(
-        "model_data/models/word_segmentation2.params")
+    word_segmentation_net.load_parameters("model_data/models/word_segmentation2.params")
     word_segmentation_net.hybridize()
 
     word_segmented_images = []
     with Image.open(paragraph_img_path) as paragraph_img:
         wordIter = get_word_imgs(paragraph_img, topk, debug, transform_fn)
-        for word_img in wordIter:
-            word_segmented_images.append(word_img)
+        for i, word_img in enumerate(wordIter):
+            out_path = os.path.join(out_dir, f"{prefix}{i}.png")
+            word_img.save(out_path)
+            word_segmented_images.append(out_path)
 
     return word_segmented_images
 

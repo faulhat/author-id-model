@@ -22,13 +22,14 @@ from .continue_training import retrieve_set_labels
 
 
 # Function to classify one form
-def getAvgOutputImgs(model: Model, word_imgs: list[Image.Image], do_resize: bool = False)\
-        -> np.ndarray:
+def getAvgOutputImgs(
+    model: Model, word_imgs: list[Image.Image], do_resize: bool = False
+) -> np.ndarray:
     if do_resize:
         for i, word_img in enumerate(word_imgs):
             word_imgs[i] = word_img.resize((IMG_WIDTH, IMG_HEIGHT))
 
-    word_img_array = list(map(np.asarray, word_imgs))
+    word_img_array = [np.asarray(word_img) for word_img in word_imgs]
     word_img_array = transform_images(word_img_array)
     pred = model.predict(word_img_array)
 
@@ -36,22 +37,30 @@ def getAvgOutputImgs(model: Model, word_imgs: list[Image.Image], do_resize: bool
 
     for fp in word_imgs:
         fp.close()
-    
+
     return pred_mean
 
-def getAvgOutput(model: Model, word_paths: list[str], do_resize: bool = False)\
-        -> np.ndarray:
-    word_imgs = list(map(Image.open, word_paths))
 
-    return getAvgOutputImgs(model, word_imgs, do_resize=do_resize)
+def getAvgOutput(
+    model: Model, word_paths: list[str], do_resize: bool = False
+) -> np.ndarray:
+    word_imgs = [Image.open(path) for path in word_paths]
+    avgOutput = getAvgOutputImgs(model, word_imgs, do_resize=do_resize)
+    
+    for img in word_imgs:
+        img.close()
+    
+    return avgOutput
+
 
 # Function to get the accuracy of a classification
-def getAccuracy(pred_mean: np.ndarray, y_label: int)\
-        -> tuple[np.int32, np.int32, np.int32]:
+def getAccuracy(
+    pred_mean: np.ndarray, y_label: int
+) -> tuple[np.int32, np.int32, np.int32]:
     y_sparse = tf.keras.utils.to_categorical(np.asarray([y_label]))
     pred_max = np.argmax(pred_mean)
     pred_correct = np.equal(pred_max, y_label).astype("int32")
-    
+
     pred_mean_array = np.asarray([pred_mean])
     pred_correct_top3 = top_k_categorical_accuracy(y_sparse, pred_mean_array, k=3)[0]
     pred_correct_top5 = top_k_categorical_accuracy(y_sparse, pred_mean_array, k=5)[0]
@@ -59,17 +68,20 @@ def getAccuracy(pred_mean: np.ndarray, y_label: int)\
     return pred_correct, pred_correct_top3, pred_correct_top5
 
 
-def get_test_paras(para2words: dict[str, str], train_paras: list[str]) -> dict[str, str]:
+def get_test_paras(
+    para2words: dict[str, str], train_paras: list[str]
+) -> dict[str, str]:
     test_para2words = {}
     for para, words in para2words.items():
         if para not in train_paras:
             test_para2words[para] = words
-    
+
     return test_para2words
 
 
-def transform_by_para(para2words: dict[str, str], para2writer: dict[str, str], encoder: LabelEncoder)\
-        -> list[tuple[list[str], int]]:
+def transform_by_para(
+    para2words: dict[str, str], para2writer: dict[str, str], encoder: LabelEncoder
+) -> list[tuple[list[str], int]]:
     words_label = []
     for paragraph, words in para2words.items():
         writer = para2writer[paragraph]
@@ -95,7 +107,9 @@ if __name__ == "__main__":
     n_correct_top3 = 0
     n_correct_top5 = 0
     for _, (words, y_label) in zip(trange(len(words_label)), words_label):
-        correct, correct_top3, correct_top5 = getAccuracy(getAvgOutput(model, words), y_label)
+        correct, correct_top3, correct_top5 = getAccuracy(
+            getAvgOutput(model, words), y_label
+        )
         n_correct += correct
         n_correct_top3 += correct_top3
         n_correct_top5 += correct_top5

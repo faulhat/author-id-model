@@ -8,7 +8,13 @@ from .test_model import *
 
 
 def get_fingerprint_model(saved_model: str) -> Model:
-    orig_model = load_model(saved_model, custom_objects={"top_3_accuracy": top_3_accuracy, "top_5_accuracy": top_5_accuracy})
+    orig_model = load_model(
+        saved_model,
+        custom_objects={
+            "top_3_accuracy": top_3_accuracy,
+            "top_5_accuracy": top_5_accuracy,
+        },
+    )
     new_model = Model(inputs=orig_model.inputs, outputs=orig_model.layers[-2].output)
 
     return new_model
@@ -21,7 +27,7 @@ def getGroups(para2writer: dict[str, str]) -> dict[str, list[str]]:
             writer2para[writer].append(paragraph)
         else:
             writer2para[writer] = [paragraph]
-    
+
     out = {}
     for paragraphs in writer2para.values():
         shuffle(paragraphs)
@@ -64,16 +70,19 @@ if __name__ == "__main__":
     n_correct_top5 = 0
     for _, (unlabelled, match) in zip(trange(len(reverse.keys())), reverse.items()):
         avgOutput = getAvgOutput(model, para2words[unlabelled])
-        distances = [(compare_to, np.linalg.norm(avgOutputs[compare_to] - avgOutput)) for compare_to in labelled]
+        distances = [
+            (compare_to, np.linalg.norm(avgOutputs[compare_to] - avgOutput))
+            for compare_to in labelled
+        ]
 
         ordered = sorted(distances, key=lambda pair: pair[1])
         ordered = [pair[0] for pair in ordered]
         if match == ordered[0]:
             n_correct += 1
-        
+
         if match in ordered[:3]:
             n_correct_top3 += 1
-        
+
         if match in ordered[:5]:
             n_correct_top5 += 1
 

@@ -1,3 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-python -m unittest discover project/tests/ "*_tests.py" -v
+source .env/bin/activate
+
+python -m pytest -v --pyargs app.tests

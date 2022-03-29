@@ -70,8 +70,9 @@ def top_5_accuracy(y_true: np.ndarray, y_pred: np.ndarray) -> np.float32:
 
 # A function to categorize words in the set by their original form.
 # Also returns a dictionary mapping paragraphs to authors.
-def categorize_all(paragraphs_dir: str, words_dir: str)\
-        -> tuple[dict[str, str], dict[str, str]]:
+def categorize_all(
+    paragraphs_dir: str, words_dir: str
+) -> tuple[dict[str, str], dict[str, str]]:
     para2words = {}
     para2writer = {}
     for writer_dir in glob.glob(os.path.join(paragraphs_dir, "*")):
@@ -89,8 +90,12 @@ def categorize_all(paragraphs_dir: str, words_dir: str)\
 
 
 # Split data for training, validation, and testing
-def split_data(para2words: dict[str, str], para2writer: dict[str, str], encoder: LabelEncoder, store_ds_to: str = None)\
-        -> tuple[np.ndarray, ...]:
+def split_data(
+    para2words: dict[str, str],
+    para2writer: dict[str, str],
+    encoder: LabelEncoder,
+    store_ds_to: str = None,
+) -> tuple[np.ndarray, ...]:
     train_files, validation_files, test_files = [], [], []
     train_targets, validation_targets, test_targets = [], [], []
 
@@ -113,6 +118,7 @@ def split_data(para2words: dict[str, str], para2writer: dict[str, str], encoder:
             words = para2words[paragraph]
             train_files.extend(words)
             train_targets.extend([writer for _ in words])
+        
 
         n_valid = math.ceil(len(paragraphs) / 2)
         for _ in range(n_valid):
@@ -134,32 +140,59 @@ def split_data(para2words: dict[str, str], para2writer: dict[str, str], encoder:
 
     if store_ds_to is not None:
         with open(store_ds_to, "wb") as pkl_fp:
-            pickle.dump((train_paras, (validation_paras, test_paras),
-                        (train_targets, validation_targets, test_targets)), pkl_fp)
+            pickle.dump(
+                (
+                    train_paras,
+                    (validation_paras, test_paras),
+                    (train_targets, validation_targets, test_targets),
+                ),
+                pkl_fp,
+            )
 
-    train_files, validation_files, test_files = np.asarray(
-        train_files), np.asarray(validation_files), np.asarray(test_files)
+    train_files, validation_files, test_files = (
+        np.asarray(train_files),
+        np.asarray(validation_files),
+        np.asarray(test_files),
+    )
 
-    train_targets, validation_targets, test_targets = np.asarray(
-        train_targets), np.asarray(validation_targets), np.asarray(test_targets)
-    train_targets, validation_targets, test_targets = encoder.transform(
-        train_targets), encoder.transform(validation_targets), encoder.transform(test_targets)
+    train_targets, validation_targets, test_targets = (
+        np.asarray(train_targets),
+        np.asarray(validation_targets),
+        np.asarray(test_targets),
+    )
+    train_targets, validation_targets, test_targets = (
+        encoder.transform(train_targets),
+        encoder.transform(validation_targets),
+        encoder.transform(test_targets),
+    )
 
     # Return the encoder in addition to the split dataset
     # so that it can be used by other parts of the program
-    return train_files, validation_files, test_files, train_targets, validation_targets, test_targets
+    return (
+        train_files,
+        validation_files,
+        test_files,
+        train_targets,
+        validation_targets,
+        test_targets,
+    )
 
 
 # Generator function to get words from the dataset.
-def gen_data(samples: np.ndarray, targets: np.ndarray, n_classes: int, batch_size: int = BATCH_SIZE, do_resize: bool = False)\
-        -> Iterator[tuple[np.ndarray, np.ndarray]]:
+def gen_data(
+    samples: np.ndarray,
+    targets: np.ndarray,
+    n_classes: int,
+    batch_size: int = BATCH_SIZE,
+    do_resize: bool = False,
+) -> Iterator[tuple[np.ndarray, np.ndarray]]:
     n_samples = len(samples)
     samples_targets = list(zip(samples, targets))
 
     while True:
         shuffle(samples_targets)
         for offset in range(0, n_samples - batch_size, batch_size):
-            batch = samples_targets[offset:offset+batch_size]
+            batch = samples_targets[offset : offset + batch_size]
 
             images = []
             targets = []
@@ -175,8 +208,7 @@ def gen_data(samples: np.ndarray, targets: np.ndarray, n_classes: int, batch_siz
 
             # Prepare the inputs and targets for the convolutional net
             X_train = transform_images(images)
-            y_train = tf.keras.utils.to_categorical(
-                np.array(targets), n_classes)
+            y_train = tf.keras.utils.to_categorical(np.array(targets), n_classes)
 
             yield X_train, y_train
 
@@ -184,8 +216,9 @@ def gen_data(samples: np.ndarray, targets: np.ndarray, n_classes: int, batch_siz
 # Create the model to be trained
 def gen_model(n_writers: int) -> Model:
     # The MobileNet image recognition model will be used as a base
-    base_model = MobileNet(input_shape=(
-        IMG_WIDTH, IMG_HEIGHT, 3), weights="imagenet", include_top=False)
+    base_model = MobileNet(
+        input_shape=(IMG_WIDTH, IMG_HEIGHT, 3), weights="imagenet", include_top=False
+    )
     base_model.trainable = False
     flatten = layers.Flatten()(base_model.output)
 
@@ -200,16 +233,23 @@ def gen_model(n_writers: int) -> Model:
     return model
 
 
-def get_model_generators(split_ds: tuple[np.ndarray, ...], encoder: LabelEncoder)\
-        -> tuple[Model, tuple[Iterator[tuple[np.ndarray, np.ndarray]], ...]]:
-    train_files,  validation_files, test_files, train_targets, validation_targets, test_targets = split_ds
-    
+def get_model_generators(
+    split_ds: tuple[np.ndarray, ...], encoder: LabelEncoder
+) -> tuple[Model, tuple[Iterator[tuple[np.ndarray, np.ndarray]], ...]]:
+    (
+        train_files,
+        validation_files,
+        test_files,
+        train_targets,
+        validation_targets,
+        test_targets,
+    ) = split_ds
+
     n_writers = len(encoder.classes_)
     model = gen_model(n_writers)
 
     train_generator = gen_data(train_files, train_targets, n_writers)
-    validation_generator = gen_data(
-        validation_files, validation_targets, n_writers)
+    validation_generator = gen_data(validation_files, validation_targets, n_writers)
     test_generator = gen_data(test_files, test_targets, n_writers)
 
     return model, (train_generator, validation_generator, test_generator)
@@ -218,9 +258,10 @@ def get_model_generators(split_ds: tuple[np.ndarray, ...], encoder: LabelEncoder
 CHECKPOINT_CALLBACK = ModelCheckpoint(
     filepath=SAVED_MODEL,
     verbose=1,
-    monitor='val_accuracy',
-    mode='max',
-    save_best_only=True)
+    monitor="val_accuracy",
+    mode="max",
+    save_best_only=True,
+)
 
 if __name__ == "__main__":
     n_epochs = 30
@@ -233,23 +274,34 @@ if __name__ == "__main__":
     os.makedirs(OUT_DIR, exist_ok=True)
 
     # Assume data has already been processed
-    writer2words, encoder = get_segmented_data(
-        WORDS, LE_SAVE_PATH, do_gen_encoder=True)
-    
+    writer2words, encoder = get_segmented_data(WORDS, LE_SAVE_PATH, do_gen_encoder=True)
+
     # Retrieve and split the dataset
     para2words, para2writer = categorize_all(PARAGRAPHS, WORDS)
     split_ds = split_data(para2words, para2writer, encoder, store_ds_to=DS_LABELS_PATH)
 
-    model, (train_generator, validation_generator,
-            test_generator) = get_model_generators(split_ds, encoder)
-    model.compile(loss="categorical_crossentropy",
-                  optimizer="adam", metrics=["accuracy", top_3_accuracy, top_5_accuracy])
+    model, (
+        train_generator,
+        validation_generator,
+        test_generator,
+    ) = get_model_generators(split_ds, encoder)
+    model.compile(
+        loss="categorical_crossentropy",
+        optimizer="adam",
+        metrics=["accuracy", top_3_accuracy, top_5_accuracy],
+    )
     print(model.summary())
     tf.keras.utils.plot_model(model, to_file=MODEL_PLOT_IMG, show_shapes=True)
 
     # Train the model
-    history = model.fit(train_generator, validation_data=validation_generator,
-                        epochs=n_epochs, steps_per_epoch=STEPS_PER_EPOCH, validation_steps=VALIDATION_STEPS, callbacks=[CHECKPOINT_CALLBACK])
+    history = model.fit(
+        train_generator,
+        validation_data=validation_generator,
+        epochs=n_epochs,
+        steps_per_epoch=STEPS_PER_EPOCH,
+        validation_steps=VALIDATION_STEPS,
+        callbacks=[CHECKPOINT_CALLBACK],
+    )
 
     # Plot training history
     plot_history(history, path=ACC_GRAPH_IMG)

@@ -1,11 +1,13 @@
 absl-py==1.0.0
 astunparse==1.6.3
+attrs==21.4.0
 autopep8==1.6.0
 cachetools==5.0.0
 certifi==2021.10.8
 charset-normalizer==2.0.12
 click==8.0.3
 compress-json==1.0.4
+coverage==6.3.2
 cycler==0.11.0
 Cython==0.29.28
 Flask==2.0.2
@@ -25,6 +27,7 @@ hnswlib==0.6.1
 idna==3.3
 imageio==2.16.1
 importlib-metadata==4.11.1
+iniconfig==1.1.1
 itsdangerous==2.0.1
 Jinja2==3.0.3
 joblib==1.1.0
@@ -48,13 +51,16 @@ packaging==21.3
 pandas==1.4.1
 Pillow==9.0.1
 plot-keras-history==1.1.30
+pluggy==1.0.0
 protobuf==3.19.4
+py==1.11.0
 pyasn1==0.4.8
 pyasn1-modules==0.2.8
 pybind11==2.9.1
 pycodestyle==2.8.0
 pydot==1.4.2
 pyparsing==3.0.7
+pytest==7.1.1
 python-dateutil==2.8.2
 python-slugify==6.0.1
 pytz==2021.3
@@ -78,6 +84,7 @@ tf-estimator-nightly==2.8.0.dev2021122109
 threadpoolctl==3.1.0
 tifffile==2022.2.9
 toml==0.10.2
+tomli==2.0.1
 tqdm==4.62.3
 typing-extensions==4.1.1
 urllib3==1.26.8
