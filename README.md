@@ -18,7 +18,7 @@ git clone https://github.com/tafaulhaber590/author-id-model/ --recurse-submodule
 To run the server:
 ```
 # With venv active
-python server/main.py
+python -m app.main
 ```
 
-There will be some warnings about a missing Tensorboard installation, since it is uninstalled deliberately in setup.sh. This is necessary to prevent naming conflicts with mxboard, on which the handwritten-text-recognition submodule depends. It doesn't affect the functioning of the program.
+There will be some warnings about a missing Tensorboard installation, since it is uninstalled deliberately in setup.sh. This is necessary to prevent naming conflicts with mxboard, which the handwritten-text-recognition submodule requires. It doesn't affect the functioning of the program.

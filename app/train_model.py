@@ -59,6 +59,9 @@ BATCH_SIZE = 16
 STEPS_PER_EPOCH = 200
 VALIDATION_STEPS = 50
 
+# The length of fingerprint arrays
+N_FINGERPRINT = 200
+
 
 def top_3_accuracy(y_true: np.ndarray, y_pred: np.ndarray) -> np.float32:
     return top_k_categorical_accuracy(y_true, y_pred, k=3)
@@ -118,7 +121,6 @@ def split_data(
             words = para2words[paragraph]
             train_files.extend(words)
             train_targets.extend([writer for _ in words])
-        
 
         n_valid = math.ceil(len(paragraphs) / 2)
         for _ in range(n_valid):
@@ -225,7 +227,7 @@ def gen_model(n_writers: int) -> Model:
     # Dropout layer to prevent overfitting
     dropout = layers.Dropout(0.6)(flatten)
     dense = layers.Dense(400, activation="relu")(dropout)
-    dense = layers.Dense(200, activation="relu")(dense)
+    dense = layers.Dense(N_FINGERPRINT, activation="relu")(dense)
 
     output = layers.Dense(n_writers, activation="softmax")(dense)
     model = Model(inputs=base_model.input, outputs=output)

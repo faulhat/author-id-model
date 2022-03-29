@@ -46,10 +46,10 @@ def getAvgOutput(
 ) -> np.ndarray:
     word_imgs = [Image.open(path) for path in word_paths]
     avgOutput = getAvgOutputImgs(model, word_imgs, do_resize=do_resize)
-    
+
     for img in word_imgs:
         img.close()
-    
+
     return avgOutput
 
 
