@@ -4,11 +4,6 @@ source .env/bin/activate
 pip install -r requirements.txt
 pip uninstall tensorboard -y
 
-echo "{
-    \"port\": 8080,
-    \"debug\": true
-}" > config.json
-
 # Setup for handwritten text segmentation submodule.
 
 cd ..
